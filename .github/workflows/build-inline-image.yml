@@ -48,3 +48,58 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: bridge/go.mod
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          path-type: inherit
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-curl
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-yaml-cpp
+            mingw-w64-ucrt-x86_64-pcre2
+            mingw-w64-ucrt-x86_64-rapidjson
+
+      - name: Read dependency pins
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os
+          d=json.load(open('scripts/ci/dependencies.lock.json'))['git']
+          refs={'QUICKJSPP_REF':'quickjspp','LIBCRON_REF':'libcron','TOML11_REF':'toml11'}
+          env=os.environ.get('GITHUB_ENV','') and open(os.environ['GITHUB_ENV'],'a')
+          for k,v in refs.items():
+              env.write(f"{k}={d[v]['revision']}\n")
+          PY
+
+      - name: Build Windows amd64
+        shell: msys2 {0}
+        run: |
+          THREADS=4 BUILD_TESTS=false bash scripts/build-windows-amd64.sh \
+            "${{ github.ref_name }}" "${{ github.sha }}" "$(date +%s)"
+
+      - name: Package portable zip
+        shell: pwsh
+        run: ./scripts/package-windows-portable.ps1 -Version "inline-${{ github.run_id }}" -Revision "${{ github.sha }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: subconverter-inline-windows-amd64
+          path: ./*.zip
