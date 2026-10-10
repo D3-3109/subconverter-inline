@@ -96,10 +96,19 @@ jobs:
 
       - name: Package portable zip
         shell: pwsh
-        run: ./scripts/package-windows-portable.ps1 -Version "inline-${{ github.run_id }}" -Revision "${{ github.sha }}"
+        run: |
+          $build = "build/windows-amd64"
+          $pkg = "SubConverter-Extended-inline"
+          New-Item -ItemType Directory -Path $pkg | Out-Null
+          Copy-Item "$build/build/subconverter.exe" $pkg -Force
+          if (Test-Path "$build/subconverter-update.exe") { Copy-Item "$build/subconverter-update.exe" $pkg -Force }
+          Copy-Item base -Destination $pkg -Recurse -Force
+          Get-Content "$build/runtime-dlls.txt" | ForEach-Object { Copy-Item $_ $pkg -Force }
+          Compress-Archive -Path "$pkg/*" -DestinationPath "SubConverter-Extended-inline.zip" -Force
+          Write-Host "Packaged:"; Get-ChildItem $pkg -Recurse | Measure-Object -Sum Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: subconverter-inline-windows-amd64
-          path: ./*.zip
+          path: ./SubConverter-Extended-inline.zip

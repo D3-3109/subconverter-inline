@@ -1,0 +1,32 @@
+# Pref for the inline-mode deployment.
+# Mount as /base/pref.toml via docker-compose.inline.yml, or just set
+# MANAGED_CONFIG_PREFIX in env and delete this file to use image defaults.
+version = 1
+
+[common]
+default_url = []
+enable_insert = true
+insert_url = [""]
+prepend_insert_url = true
+exclude_remarks = []
+include_remarks = []
+default_external_config = "https://raw.githubusercontent.com/D3-3109/ACL4SSR/master/Clash/config/ACL4SSR_ProxyBili.ini"
+fallback_to_default_external_config = false
+clash_rule_base = "base/all_base.tpl"
+surge_rule_base = "base/all_base.tpl"
+
+[server]
+listen = "0.0.0.0"
+port = 25500
+
+[managed_config]
+# 供 /getruleset、MANAGED-CONFIG 生成地址的前缀;建议留空走 MANAGED_CONFIG_PREFIX env
+managed_config_prefix = ""
+
+[advanced]
+log_level = "info"
+max_allowed_rules = 0
+max_allowed_rulesets = 64
+cache_subscription = 60
+cache_config = 300
+cache_ruleset = 21600
