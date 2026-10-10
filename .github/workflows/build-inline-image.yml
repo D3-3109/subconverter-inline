@@ -37,8 +37,8 @@ jobs:
           platforms: linux/${{ matrix.arch }}
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ matrix.arch }}
-            ghcr.io/${{ github.repository }}:${{ matrix.arch }}-${{ github.sha }}
+            ghcr.io/d3-3109/subconverter-inline:${{ matrix.arch }}
+            ghcr.io/d3-3109/subconverter-inline:${{ matrix.arch }}-${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
 
@@ -53,7 +53,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Merge arch images into release tags
         run: |
-          REPO=ghcr.io/${{ github.repository }}
+          REPO=ghcr.io/d3-3109/subconverter-inline
           SRC="${REPO}:amd64 ${REPO}:arm64"
           for tag in master latest ${{ github.sha }}; do
             docker buildx imagetools create -t ${REPO}:${tag} ${SRC} \
