@@ -3742,6 +3742,7 @@ struct ParsedSubRequest {
   tribool generate_classical_rule_provider;
   tribool tls13;
   tribool provider_proxy_direct;
+  tribool inline_nodes; // inline=true: resolve http subscriptions into nodes instead of providers
 };
 
 static std::string parseSubRequestArguments(Request &request,
@@ -3862,6 +3863,7 @@ static std::string parseSubRequestArguments(Request &request,
   parsed.tls13 = getUrlArg(argument, "tls13");
   parsed.provider_proxy_direct =
       getUrlArg(argument, "provider_proxy_direct");
+  parsed.inline_nodes = getUrlArg(argument, "inline");
   parsed.explain.upload_requested = parsed.upload.get(false);
   if (parsed.explain_mode && parsed.upload) {
     parsed.upload = false;
@@ -5468,7 +5470,9 @@ static SubStageResponse processSubscriptionNodes(
       }
       std::string link = tagged.link.empty() ? x : tagged.link;
       bool isNodeLink = tagged.has_node ||
-                        mihomo::isSupportedNonHttpSchemeLink(link);
+                        mihomo::isSupportedNonHttpSchemeLink(link) ||
+                        (parsed.inline_nodes.get(false) &&
+                         mihomo::isHttpSchemeLink(link));
 
       if (isNodeLink) {
         if (tagged.has_interval) {

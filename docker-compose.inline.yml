@@ -1,0 +1,19 @@
+services:
+  subconverter:
+    image: ghcr.io/D3-3109/subconverter-inline:master
+    container_name: subconverter-inline
+    restart: unless-stopped
+    ports:
+      - "25500:25500/tcp"
+    environment:
+      # 让生成的 rule-provider URL 指向公网可达地址,而不是 127.0.0.1
+      MANAGED_CONFIG_PREFIX: "https://sub.your-domain.com"
+      TZ: Asia/Shanghai
+    volumes:
+      # 可选:用你自己的 pref 覆盖默认
+      - ./pref.toml:/base/pref.toml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:25500/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
