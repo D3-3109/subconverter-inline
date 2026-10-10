@@ -2,9 +2,7 @@ name: Build & push inline-mode image (ghcr)
 
 on:
   push:
-    branches:
-      - master
-      - dev
+    branches: [master, dev]
   workflow_dispatch:
 
 permissions:
@@ -12,8 +10,13 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-arch:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-latest,        arch: amd64 }
+          - { runner: ubuntu-24.04-arm,     arch: arm64 }
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,33 +24,41 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Log in to ghcr
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=sha,format=short
-            type=raw,value=inline-latest,enable={{is_default_branch}}
-
-      - name: Build & push (amd64)
+      - name: Build & push ${{ matrix.arch }} image
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ matrix.arch }}
+            ghcr.io/${{ github.repository }}:${{ matrix.arch }}-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+
+  manifest:
+    needs: [build-arch]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge arch images into release tags
+        run: |
+          REPO=ghcr.io/${{ github.repository }}
+          SRC="${REPO}:amd64 ${REPO}:arm64"
+          for tag in master latest ${{ github.sha }}; do
+            docker buildx imagetools create -t ${REPO}:${tag} ${SRC} \
+              || echo "tag ${tag} failed (may need both arch builds)"
+          done
 
   build-windows:
     runs-on: windows-latest
@@ -83,9 +94,8 @@ jobs:
           import json,os
           d=json.load(open('scripts/ci/dependencies.lock.json'))['git']
           refs={'QUICKJSPP_REF':'quickjspp','LIBCRON_REF':'libcron','TOML11_REF':'toml11'}
-          env=os.environ.get('GITHUB_ENV','') and open(os.environ['GITHUB_ENV'],'a')
-          for k,v in refs.items():
-              env.write(f"{k}={d[v]['revision']}\n")
+          env=open(os.environ['GITHUB_ENV'],'a')
+          for k,v in refs.items(): env.write(f"{k}={d[v]['revision']}\n")
           PY
 
       - name: Build Windows amd64
@@ -105,7 +115,6 @@ jobs:
           Copy-Item base -Destination $pkg -Recurse -Force
           Get-Content "$build/runtime-dlls.txt" | ForEach-Object { Copy-Item $_ $pkg -Force }
           Compress-Archive -Path "$pkg/*" -DestinationPath "SubConverter-Extended-inline.zip" -Force
-          Write-Host "Packaged:"; Get-ChildItem $pkg -Recurse | Measure-Object -Sum Length
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
